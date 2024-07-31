@@ -1,11 +1,26 @@
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { faArrowRight } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
-import { ShareSecretForm } from "./components";
+import { useGetActiveSharedSecretById } from "@app/hooks/api/secretSharing";
 
-export const ShareSecretPublicPage = () => {
+import { SecretContainer, SecretErrorContainer } from "./components";
+
+export const ViewSecretPublicPage = () => {
+  const router = useRouter();
+  const { id, key: urlEncodedPublicKey } = router.query;
+
+  const [hashedHex, key] = urlEncodedPublicKey
+    ? urlEncodedPublicKey.toString().split("-")
+    : ["", ""];
+
+  const { data: secret, error } = useGetActiveSharedSecretById({
+    sharedSecretId: id as string,
+    hashedHex
+  });
+
   return (
     <div className="flex h-screen flex-col justify-between overflow-auto bg-gradient-to-tr from-mineshaft-700 to-bunker-800 text-gray-200 dark:[color-scheme:dark]">
       <div />
@@ -23,7 +38,7 @@ export const ShareSecretPublicPage = () => {
             </Link>
           </div>
           <h1 className="bg-gradient-to-b from-white to-bunker-200 bg-clip-text text-center text-4xl font-medium text-transparent">
-            Share a secret
+            View shared secret
           </h1>
           <p className="text-md">
             Powered by{" "}
@@ -37,9 +52,8 @@ export const ShareSecretPublicPage = () => {
             </a>
           </p>
         </div>
-        <div className="rounded-lg border border-mineshaft-600 bg-mineshaft-800 p-4">
-          <ShareSecretForm isPublic />
-        </div>
+        {secret && key && <SecretContainer secret={secret} secretKey={key} />}
+        {error && <SecretErrorContainer />}
         <div className="m-auto my-8 flex w-full">
           <div className="w-full border-t border-mineshaft-600" />
         </div>
@@ -75,7 +89,6 @@ export const ShareSecretPublicPage = () => {
           </div>
         </div>
       </div>
-
       <div className="w-full bg-mineshaft-600 p-2">
         <p className="text-center text-sm text-mineshaft-300">
           Made with ❤️ by{" "}
