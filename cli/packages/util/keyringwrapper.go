@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/manifoldco/promptui"
 	"github.com/rs/zerolog/log"
 	"github.com/zalando/go-keyring"
 )
@@ -32,16 +31,10 @@ func SetValueInKeyring(key, value string) error {
 		configFile, _ := GetConfigFile()
 
 		if configFile.VaultBackendPassphrase == "" {
-			passphrasePrompt := promptui.Prompt{
-				Label: "Enter a passphrase to encrypt sensitive CLI data at rest",
-			}
-			passphrase, err := passphrasePrompt.Run()
-			if err != nil {
-				return err
-			}
-			encodedPassphrase := base64.StdEncoding.EncodeToString([]byte(passphrase))
+			encodedPassphrase := base64.StdEncoding.EncodeToString([]byte(GenerateRandomString(10))) // generate random passphrase
 			configFile.VaultBackendPassphrase = encodedPassphrase
 			configFile.VaultBackendType = VAULT_BACKEND_FILE_MODE
+			err = WriteConfigFile(&configFile)
 			if err != nil {
 				return err
 			}
@@ -62,7 +55,6 @@ func GetValueInKeyring(key string) (string, error) {
 	if err != nil {
 		PrintErrorAndExit(1, err, "Unable to get current vault. Tip: run [infisical reset] then try again")
 	}
-
 	return keyring.Get(currentVaultBackend, MAIN_KEYRING_SERVICE, key)
 
 }
@@ -74,5 +66,4 @@ func DeleteValueInKeyring(key string) error {
 	}
 
 	return keyring.Delete(currentVaultBackend, MAIN_KEYRING_SERVICE, key)
-
 }
