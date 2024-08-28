@@ -1,4 +1,5 @@
 import { CronJob } from "cron";
+import { Redis } from "ioredis";
 import { Knex } from "knex";
 import { z } from "zod";
 
@@ -71,6 +72,7 @@ import { trustedIpDALFactory } from "@app/ee/services/trusted-ip/trusted-ip-dal"
 import { trustedIpServiceFactory } from "@app/ee/services/trusted-ip/trusted-ip-service";
 import { TKeyStoreFactory } from "@app/keystore/keystore";
 import { getConfig } from "@app/lib/config/env";
+import { logger } from "@app/lib/logger";
 import { TQueueServiceFactory } from "@app/queue";
 import { readLimit } from "@app/server/config/rateLimiter";
 import { accessTokenQueueServiceFactory } from "@app/services/access-token-queue/access-token-queue";
@@ -90,7 +92,9 @@ import { certificateAuthorityDALFactory } from "@app/services/certificate-author
 import { certificateAuthorityQueueFactory } from "@app/services/certificate-authority/certificate-authority-queue";
 import { certificateAuthoritySecretDALFactory } from "@app/services/certificate-authority/certificate-authority-secret-dal";
 import { certificateAuthorityServiceFactory } from "@app/services/certificate-authority/certificate-authority-service";
+import { certificateEstServiceFactory } from "@app/services/certificate-est/certificate-est-service";
 import { certificateTemplateDALFactory } from "@app/services/certificate-template/certificate-template-dal";
+import { certificateTemplateEstConfigDALFactory } from "@app/services/certificate-template/certificate-template-est-config-dal";
 import { certificateTemplateServiceFactory } from "@app/services/certificate-template/certificate-template-service";
 import { groupProjectDALFactory } from "@app/services/group-project/group-project-dal";
 import { groupProjectMembershipRoleDALFactory } from "@app/services/group-project/group-project-membership-role-dal";
@@ -195,6 +199,7 @@ import { injectIdentity } from "../plugins/auth/inject-identity";
 import { injectPermission } from "../plugins/auth/inject-permission";
 import { injectRateLimits } from "../plugins/inject-rate-limits";
 import { registerSecretScannerGhApp } from "../plugins/secret-scanner";
+import { registerCertificateEstRouter } from "./est/certificate-est-router";
 import { registerV1Routes } from "./v1";
 import { registerV2Routes } from "./v2";
 import { registerV3Routes } from "./v3";
@@ -600,6 +605,7 @@ export const registerRoutes = async (
   const certificateAuthoritySecretDAL = certificateAuthoritySecretDALFactory(db);
   const certificateAuthorityCrlDAL = certificateAuthorityCrlDALFactory(db);
   const certificateTemplateDAL = certificateTemplateDALFactory(db);
+  const certificateTemplateEstConfigDAL = certificateTemplateEstConfigDALFactory(db);
 
   const certificateDAL = certificateDALFactory(db);
   const certificateBodyDAL = certificateBodyDALFactory(db);
@@ -657,8 +663,21 @@ export const registerRoutes = async (
 
   const certificateTemplateService = certificateTemplateServiceFactory({
     certificateTemplateDAL,
+    certificateTemplateEstConfigDAL,
     certificateAuthorityDAL,
-    permissionService
+    permissionService,
+    kmsService,
+    projectDAL
+  });
+
+  const certificateEstService = certificateEstServiceFactory({
+    certificateAuthorityService,
+    certificateTemplateService,
+    certificateTemplateDAL,
+    certificateAuthorityCertDAL,
+    certificateAuthorityDAL,
+    projectDAL,
+    kmsService
   });
 
   const pkiAlertService = pkiAlertServiceFactory({
@@ -1196,6 +1215,7 @@ export const registerRoutes = async (
     certificateAuthority: certificateAuthorityService,
     certificateTemplate: certificateTemplateService,
     certificateAuthorityCrl: certificateAuthorityCrlService,
+    certificateEst: certificateEstService,
     pkiAlert: pkiAlertService,
     pkiCollection: pkiCollectionService,
     secretScanning: secretScanningService,
@@ -1239,7 +1259,7 @@ export const registerRoutes = async (
       response: {
         200: z.object({
           date: z.date(),
-          message: z.literal("Ok"),
+          message: z.string().optional(),
           emailConfigured: z.boolean().optional(),
           inviteOnlySignup: z.boolean().optional(),
           redisConfigured: z.boolean().optional(),
@@ -1248,12 +1268,37 @@ export const registerRoutes = async (
         })
       }
     },
-    handler: async () => {
+    handler: async (request, reply) => {
       const cfg = getConfig();
       const serverCfg = await getServerCfg();
+
+      try {
+        await db.raw("SELECT NOW()");
+      } catch (err) {
+        logger.error("Health check: database connection failed", err);
+        return reply.code(503).send({
+          date: new Date(),
+          message: "Service unavailable"
+        });
+      }
+
+      if (cfg.isRedisConfigured) {
+        const redis = new Redis(cfg.REDIS_URL);
+        try {
+          await redis.ping();
+          redis.disconnect();
+        } catch (err) {
+          logger.error("Health check: redis connection failed", err);
+          return reply.code(503).send({
+            date: new Date(),
+            message: "Service unavailable"
+          });
+        }
+      }
+
       return {
         date: new Date(),
-        message: "Ok" as const,
+        message: "Ok",
         emailConfigured: cfg.isSmtpConfigured,
         inviteOnlySignup: Boolean(serverCfg.allowSignUp),
         redisConfigured: cfg.isRedisConfigured,
@@ -1262,6 +1307,9 @@ export const registerRoutes = async (
       };
     }
   });
+
+  // register special routes
+  await server.register(registerCertificateEstRouter, { prefix: "/.well-known/est" });
 
   // register routes for v1
   await server.register(
