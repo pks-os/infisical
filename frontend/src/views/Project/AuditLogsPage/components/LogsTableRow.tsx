@@ -5,9 +5,11 @@ import { Actor, AuditLog, Event } from "@app/hooks/api/auditLogs/types";
 
 type Props = {
   auditLog: AuditLog;
+  isOrgAuditLogs?: boolean;
+  showActorColumn: boolean;
 };
 
-export const LogsTableRow = ({ auditLog }: Props) => {
+export const LogsTableRow = ({ auditLog, isOrgAuditLogs, showActorColumn }: Props) => {
   const renderActor = (actor: Actor) => {
     switch (actor.type) {
       case ActorType.USER:
@@ -442,6 +444,23 @@ export const LogsTableRow = ({ auditLog }: Props) => {
             <p>{`Certificate Template ID: ${event.metadata.certificateTemplateId}`}</p>
           </Td>
         );
+      case EventType.GET_PROJECT_SLACK_CONFIG:
+        return (
+          <Td>
+            <p>{`Project Slack Config ID: ${event.metadata.id}`}</p>
+          </Td>
+        );
+      case EventType.UPDATE_PROJECT_SLACK_CONFIG:
+        return (
+          <Td>
+            <p>{`Project Slack Config ID: ${event.metadata.id}`}</p>
+            <p>{`Slack integration ID: ${event.metadata.slackIntegrationId}`}</p>
+            <p>{`Access Request Notification Status: ${event.metadata.isAccessRequestNotificationEnabled}`}</p>
+            <p>{`Access Request Channels: ${event.metadata.accessRequestChannels}`}</p>
+            <p>{`Secret Approval Request Notification Status: ${event.metadata.isSecretRequestNotificationEnabled}`}</p>
+            <p>{`Secret Request Channels: ${event.metadata.secretRequestChannels}`}</p>
+          </Td>
+        );
       default:
         return <Td />;
     }
@@ -469,7 +488,8 @@ export const LogsTableRow = ({ auditLog }: Props) => {
     <Tr className={`log-${auditLog.id} h-10 border-x-0 border-b border-t-0`}>
       <Td>{formatDate(auditLog.createdAt)}</Td>
       <Td>{`${eventToNameMap[auditLog.event.type]}`}</Td>
-      {renderActor(auditLog.actor)}
+      {isOrgAuditLogs && <Td>{auditLog.project.name}</Td>}
+      {showActorColumn && renderActor(auditLog.actor)}
       <Td>
         <p>{userAgentTTypeoNameMap[auditLog.userAgentType]}</p>
         <p>{auditLog.ipAddress}</p>
