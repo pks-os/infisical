@@ -114,11 +114,11 @@ export const orgServiceFactory = ({
   tokenService,
   orgBotDAL,
   licenseService,
+  projectRoleDAL,
   samlConfigDAL,
   userGroupMembershipDAL,
   projectBotDAL,
-  projectUserMembershipRoleDAL,
-  projectRoleDAL
+  projectUserMembershipRoleDAL
 }: TOrgServiceFactoryDep) => {
   /*
    * Get organization details by the organization id
@@ -458,7 +458,6 @@ export const orgServiceFactory = ({
     const appCfg = getConfig();
 
     const { permission } = await permissionService.getOrgPermission(actor, actorId, orgId, actorAuthMethod, actorOrgId);
-    ForbiddenError.from(permission).throwUnlessCan(OrgPermissionActions.Create, OrgPermissionSubjects.Member);
 
     const org = await orgDAL.findOrgById(orgId);
 
@@ -583,6 +582,8 @@ export const orgServiceFactory = ({
 
         // if there exist no org membership we set is as given by the request
         if (!inviteeMembership) {
+          // as its used by project invite also
+          ForbiddenError.from(permission).throwUnlessCan(OrgPermissionActions.Create, OrgPermissionSubjects.Member);
           let roleId;
           const orgRole = isCustomOrgRole ? OrgMembershipRole.Custom : organizationRoleSlug;
           if (isCustomOrgRole) {

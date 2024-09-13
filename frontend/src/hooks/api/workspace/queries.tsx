@@ -1,6 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 
 import { apiRequest } from "@app/config/request";
+import { OrderByDirection } from "@app/hooks/api/generic/types";
 
 import { CaStatus } from "../ca/enums";
 import { TCertificateAuthority } from "../ca/types";
@@ -8,23 +9,26 @@ import { TCertificate } from "../certificates/types";
 import { TCertificateTemplate } from "../certificateTemplates/types";
 import { TGroupMembership } from "../groups/types";
 import { identitiesKeys } from "../identities/queries";
-import { IdentityMembership } from "../identities/types";
+import { TProjectIdentitiesList } from "../identities/types";
 import { IntegrationAuth } from "../integrationAuth/types";
 import { TIntegration } from "../integrations/types";
 import { TPkiAlert } from "../pkiAlerts/types";
 import { TPkiCollection } from "../pkiCollections/types";
 import { EncryptedSecret } from "../secrets/types";
-import { userKeys } from "../users/queries";
+import { userKeys } from "../users/query-keys";
 import { TWorkspaceUser } from "../users/types";
 import { ProjectSlackConfig } from "../workflowIntegrations/types";
+import { workspaceKeys } from "./query-keys";
 import {
   CreateEnvironmentDTO,
   CreateWorkspaceDTO,
   DeleteEnvironmentDTO,
   DeleteWorkspaceDTO,
   NameWorkspaceSecretsDTO,
+  ProjectIdentityOrderBy,
   RenameWorkspaceDTO,
   TGetUpgradeProjectStatusDTO,
+  TListProjectIdentitiesDTO,
   ToggleAutoCapitalizationDTO,
   TUpdateWorkspaceIdentityRoleDTO,
   TUpdateWorkspaceUserRoleDTO,
@@ -33,49 +37,6 @@ import {
   UpdatePitVersionLimitDTO,
   Workspace
 } from "./types";
-
-export const workspaceKeys = {
-  getWorkspaceById: (workspaceId: string) => [{ workspaceId }, "workspace"] as const,
-  getWorkspaceSecrets: (workspaceId: string) => [{ workspaceId }, "workspace-secrets"] as const,
-  getWorkspaceIndexStatus: (workspaceId: string) =>
-    [{ workspaceId }, "workspace-index-status"] as const,
-  getProjectUpgradeStatus: (workspaceId: string) => [{ workspaceId }, "workspace-upgrade-status"],
-  getWorkspaceMemberships: (orgId: string) => [{ orgId }, "workspace-memberships"],
-  getWorkspaceAuthorization: (workspaceId: string) => [{ workspaceId }, "workspace-authorizations"],
-  getWorkspaceIntegrations: (workspaceId: string) => [{ workspaceId }, "workspace-integrations"],
-  getAllUserWorkspace: ["workspaces"] as const,
-  getWorkspaceAuditLogs: (workspaceId: string) =>
-    [{ workspaceId }, "workspace-audit-logs"] as const,
-  getWorkspaceUsers: (workspaceId: string) => [{ workspaceId }, "workspace-users"] as const,
-  getWorkspaceIdentityMemberships: (workspaceId: string) =>
-    [{ workspaceId }, "workspace-identity-memberships"] as const,
-  getWorkspaceGroupMemberships: (workspaceId: string) =>
-    [{ workspaceId }, "workspace-groups"] as const,
-  getWorkspaceCas: ({ projectSlug }: { projectSlug: string }) =>
-    [{ projectSlug }, "workspace-cas"] as const,
-  specificWorkspaceCas: ({ projectSlug, status }: { projectSlug: string; status?: CaStatus }) =>
-    [...workspaceKeys.getWorkspaceCas({ projectSlug }), { status }] as const,
-  allWorkspaceCertificates: () => ["workspace-certificates"] as const,
-  forWorkspaceCertificates: (slug: string) =>
-    [...workspaceKeys.allWorkspaceCertificates(), slug] as const,
-  specificWorkspaceCertificates: ({
-    slug,
-    offset,
-    limit
-  }: {
-    slug: string;
-    offset: number;
-    limit: number;
-  }) => [...workspaceKeys.forWorkspaceCertificates(slug), { offset, limit }] as const,
-  getWorkspacePkiAlerts: (workspaceId: string) =>
-    [{ workspaceId }, "workspace-pki-alerts"] as const,
-  getWorkspacePkiCollections: (workspaceId: string) =>
-    [{ workspaceId }, "workspace-pki-collections"] as const,
-  getWorkspaceCertificateTemplates: (workspaceId: string) =>
-    [{ workspaceId }, "workspace-certificate-templates"] as const,
-  getWorkspaceSlackConfig: (workspaceId: string) =>
-    [{ workspaceId }, "workspace-slack-config"] as const
-};
 
 const fetchWorkspaceById = async (workspaceId: string) => {
   const { data } = await apiRequest.get<{ workspace: Workspace }>(
@@ -526,18 +487,51 @@ export const useDeleteIdentityFromWorkspace = () => {
   });
 };
 
-export const useGetWorkspaceIdentityMemberships = (workspaceId: string) => {
+export const useGetWorkspaceIdentityMemberships = (
+  {
+    workspaceId,
+    offset = 0,
+    limit = 100,
+    orderBy = ProjectIdentityOrderBy.Name,
+    orderDirection = OrderByDirection.ASC,
+    search = ""
+  }: TListProjectIdentitiesDTO,
+  options?: Omit<
+    UseQueryOptions<
+      TProjectIdentitiesList,
+      unknown,
+      TProjectIdentitiesList,
+      ReturnType<typeof workspaceKeys.getWorkspaceIdentityMembershipsWithParams>
+    >,
+    "queryKey" | "queryFn"
+  >
+) => {
   return useQuery({
-    queryKey: workspaceKeys.getWorkspaceIdentityMemberships(workspaceId),
+    queryKey: workspaceKeys.getWorkspaceIdentityMembershipsWithParams({
+      workspaceId,
+      offset,
+      limit,
+      orderBy,
+      orderDirection,
+      search
+    }),
     queryFn: async () => {
-      const {
-        data: { identityMemberships }
-      } = await apiRequest.get<{ identityMemberships: IdentityMembership[] }>(
-        `/api/v2/workspace/${workspaceId}/identity-memberships`
+      const params = new URLSearchParams({
+        offset: String(offset),
+        limit: String(limit),
+        orderBy: String(orderBy),
+        orderDirection: String(orderDirection),
+        search: String(search)
+      });
+
+      const { data } = await apiRequest.get<TProjectIdentitiesList>(
+        `/api/v2/workspace/${workspaceId}/identity-memberships`,
+        { params }
       );
-      return identityMemberships;
+      return data;
     },
-    enabled: true
+    enabled: true,
+    ...options
   });
 };
 

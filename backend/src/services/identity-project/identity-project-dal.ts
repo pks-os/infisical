@@ -1,9 +1,11 @@
 import { Knex } from "knex";
 
 import { TDbClient } from "@app/db";
-import { TableName } from "@app/db/schemas";
+import { TableName, TIdentities } from "@app/db/schemas";
 import { DatabaseError } from "@app/lib/errors";
-import { ormify, sqlNestRelationships } from "@app/lib/knex";
+import { ormify, selectAllTableCols, sqlNestRelationships } from "@app/lib/knex";
+import { OrderByDirection } from "@app/lib/types";
+import { ProjectIdentityOrderBy, TListProjectIdentityDTO } from "@app/services/identity-project/identity-project-types";
 
 export type TIdentityProjectDALFactory = ReturnType<typeof identityProjectDALFactory>;
 
@@ -107,12 +109,45 @@ export const identityProjectDALFactory = (db: TDbClient) => {
     }
   };
 
-  const findByProjectId = async (projectId: string, filter: { identityId?: string } = {}, tx?: Knex) => {
+  const findByProjectId = async (
+    projectId: string,
+    filter: { identityId?: string } & Pick<
+      TListProjectIdentityDTO,
+      "limit" | "offset" | "search" | "orderBy" | "orderDirection"
+    > = {},
+    tx?: Knex
+  ) => {
     try {
-      const docs = await (tx || db.replicaNode())(TableName.IdentityProjectMembership)
+      // TODO: scott - optimize, there's redundancy here with project membership and the below query
+      const fetchIdentitySubquery = (tx || db.replicaNode())(TableName.Identity)
+        .where((qb) => {
+          if (filter.search) {
+            void qb.whereILike(`${TableName.Identity}.name`, `%${filter.search}%`);
+          }
+        })
+        .join(
+          TableName.IdentityProjectMembership,
+          `${TableName.IdentityProjectMembership}.identityId`,
+          `${TableName.Identity}.id`
+        )
+        .where(`${TableName.IdentityProjectMembership}.projectId`, projectId)
+        .orderBy(
+          `${TableName.Identity}.${filter.orderBy ?? ProjectIdentityOrderBy.Name}`,
+          filter.orderDirection ?? OrderByDirection.ASC
+        )
+        .select(selectAllTableCols(TableName.Identity))
+        .as(TableName.Identity); // required for subqueries
+
+      if (filter.limit) {
+        void fetchIdentitySubquery.offset(filter.offset ?? 0).limit(filter.limit);
+      }
+
+      const query = (tx || db.replicaNode())(TableName.IdentityProjectMembership)
         .where(`${TableName.IdentityProjectMembership}.projectId`, projectId)
         .join(TableName.Project, `${TableName.IdentityProjectMembership}.projectId`, `${TableName.Project}.id`)
-        .join(TableName.Identity, `${TableName.IdentityProjectMembership}.identityId`, `${TableName.Identity}.id`)
+        .join<TIdentities, TIdentities>(fetchIdentitySubquery, (bd) => {
+          bd.on(`${TableName.IdentityProjectMembership}.identityId`, `${TableName.Identity}.id`);
+        })
         .where((qb) => {
           if (filter.identityId) {
             void qb.where("identityId", filter.identityId);
@@ -153,6 +188,19 @@ export const identityProjectDALFactory = (db: TDbClient) => {
           db.ref("temporaryAccessEndTime").withSchema(TableName.IdentityProjectMembershipRole),
           db.ref("name").as("projectName").withSchema(TableName.Project)
         );
+
+      // TODO: scott - joins seem to reorder identities so need to order again, for the sake of urgency will optimize at a later point
+      if (filter.orderBy) {
+        switch (filter.orderBy) {
+          case "name":
+            void query.orderBy(`${TableName.Identity}.${filter.orderBy}`, filter.orderDirection);
+            break;
+          default:
+          // do nothing
+        }
+      }
+
+      const docs = await query;
 
       const members = sqlNestRelationships({
         data: docs,
@@ -208,9 +256,37 @@ export const identityProjectDALFactory = (db: TDbClient) => {
     }
   };
 
+  const getCountByProjectId = async (
+    projectId: string,
+    filter: { identityId?: string } & Pick<TListProjectIdentityDTO, "search"> = {},
+    tx?: Knex
+  ) => {
+    try {
+      const identities = await (tx || db.replicaNode())(TableName.IdentityProjectMembership)
+        .where(`${TableName.IdentityProjectMembership}.projectId`, projectId)
+        .join(TableName.Project, `${TableName.IdentityProjectMembership}.projectId`, `${TableName.Project}.id`)
+        .join(TableName.Identity, `${TableName.IdentityProjectMembership}.identityId`, `${TableName.Identity}.id`)
+        .where((qb) => {
+          if (filter.identityId) {
+            void qb.where("identityId", filter.identityId);
+          }
+
+          if (filter.search) {
+            void qb.whereILike(`${TableName.Identity}.name`, `%${filter.search}%`);
+          }
+        })
+        .count();
+
+      return Number(identities[0].count);
+    } catch (error) {
+      throw new DatabaseError({ error, name: "GetCountByProjectId" });
+    }
+  };
+
   return {
     ...identityProjectOrm,
     findByIdentityId,
-    findByProjectId
+    findByProjectId,
+    getCountByProjectId
   };
 };
