@@ -19,6 +19,7 @@ import {
   UpdateSecretCommand
 } from "@aws-sdk/client-secrets-manager";
 import { AssumeRoleCommand, STSClient } from "@aws-sdk/client-sts";
+import { createAppAuth } from "@octokit/auth-app";
 import { Octokit } from "@octokit/rest";
 import AWS, { AWSError } from "aws-sdk";
 import { AxiosError } from "axios";
@@ -36,6 +37,7 @@ import { TCreateManySecretsRawFn, TUpdateManySecretsRawFn } from "@app/services/
 
 import { TIntegrationDALFactory } from "../integration/integration-dal";
 import { IntegrationMetadataSchema } from "../integration/integration-schema";
+import { IntegrationAuthMetadataSchema } from "./integration-auth-schema";
 import { TIntegrationsWithEnvironment } from "./integration-auth-types";
 import {
   IntegrationInitialSyncBehavior,
@@ -728,7 +730,7 @@ const syncSecretsAWSParameterStore = async ({
           awsParameterStoreSecretsObj[key].KeyId !== metadata.kmsKeyId;
 
         // we ensure that the KMS key configured in the integration is applied for ALL parameters on AWS
-        if (shouldUpdateKms || awsParameterStoreSecretsObj[key].Value !== secrets[key].value) {
+        if (secrets[key].value && (shouldUpdateKms || awsParameterStoreSecretsObj[key].Value !== secrets[key].value)) {
           await ssm
             .putParameter({
               Name: `${integration.path}${key}`,
@@ -789,7 +791,7 @@ const syncSecretsAWSParameterStore = async ({
         logger.info(
           `getIntegrationSecrets: inside of shouldDisableDelete AWS SSM [projectId=${projectId}] [environment=${integration.environment.slug}]  [secretPath=${integration.secretPath}] [step=2]`
         );
-        if (!(key in secrets)) {
+        if (!(key in secrets) || !secrets[key].value) {
           logger.info(
             `getIntegrationSecrets: inside of shouldDisableDelete AWS SSM [projectId=${projectId}] [environment=${integration.environment.slug}]  [secretPath=${integration.secretPath}] [step=3]`
           );
@@ -1542,11 +1544,13 @@ const syncSecretsNetlify = async ({
  */
 const syncSecretsGitHub = async ({
   integration,
+  integrationAuth,
   secrets,
   accessToken,
   appendices
 }: {
   integration: TIntegrations;
+  integrationAuth: TIntegrationAuths;
   secrets: Record<string, { value: string; comment?: string }>;
   accessToken: string;
   appendices?: { prefix: string; suffix: string };
@@ -1568,9 +1572,24 @@ const syncSecretsGitHub = async ({
     selected_repositories_url?: string | undefined;
   }
 
-  const octokit = new Octokit({
-    auth: accessToken
-  });
+  const authMetadata = IntegrationAuthMetadataSchema.parse(integrationAuth.metadata || {});
+  let octokit: Octokit;
+  const appCfg = getConfig();
+
+  if (authMetadata.installationId) {
+    octokit = new Octokit({
+      authStrategy: createAppAuth,
+      auth: {
+        appId: appCfg.CLIENT_APP_ID_GITHUB_APP,
+        privateKey: appCfg.CLIENT_PRIVATE_KEY_GITHUB_APP,
+        installationId: authMetadata.installationId
+      }
+    });
+  } else {
+    octokit = new Octokit({
+      auth: accessToken
+    });
+  }
 
   enum GithubScope {
     Repo = "github-repo",
@@ -4069,6 +4088,7 @@ export const syncIntegrationSecrets = async ({
     case Integrations.GITHUB:
       await syncSecretsGitHub({
         integration,
+        integrationAuth,
         secrets,
         accessToken,
         appendices
