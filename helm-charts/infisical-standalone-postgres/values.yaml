@@ -5,8 +5,11 @@ infisical:
   enabled: true
   name: infisical
   autoDatabaseSchemaMigration: true
+  databaseSchemaMigrationInitContainer:
+      image: "ghcr.io/groundnuty/k8s-wait-for:no-root-v2.0"
+      imagePullPolicy: IfNotPresent
+
   databaseSchemaMigrationJob:
-    serviceAccountNamespace: default
     serviceAccountName: default
        
   fullnameOverride: ""
@@ -35,11 +38,11 @@ infisical:
       cpu: 350m
 
 ingress:
-  enabled: false
+  enabled: true
   hostName: ""
   ingressClassName: nginx
   nginx:
-    enabled: false
+    enabled: true
   annotations: {}
   tls:
     []
