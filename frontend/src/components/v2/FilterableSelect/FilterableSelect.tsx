@@ -1,50 +1,7 @@
-import Select, {
-  ClearIndicatorProps,
-  components,
-  DropdownIndicatorProps,
-  MultiValueRemoveProps,
-  OptionProps,
-  Props
-} from "react-select";
-import { faCheckCircle, faCircleXmark } from "@fortawesome/free-regular-svg-icons";
-import { faChevronDown, faXmark } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import Select, { Props } from "react-select";
 import { twMerge } from "tailwind-merge";
 
-const DropdownIndicator = <T,>(props: DropdownIndicatorProps<T>) => {
-  return (
-    <components.DropdownIndicator {...props}>
-      <FontAwesomeIcon icon={faChevronDown} size="xs" />
-    </components.DropdownIndicator>
-  );
-};
-
-const ClearIndicator = <T,>(props: ClearIndicatorProps<T>) => {
-  return (
-    <components.ClearIndicator {...props}>
-      <FontAwesomeIcon icon={faCircleXmark} />
-    </components.ClearIndicator>
-  );
-};
-
-const MultiValueRemove = (props: MultiValueRemoveProps) => {
-  return (
-    <components.MultiValueRemove {...props}>
-      <FontAwesomeIcon icon={faXmark} size="xs" />
-    </components.MultiValueRemove>
-  );
-};
-
-const Option = <T,>({ isSelected, children, ...props }: OptionProps<T>) => {
-  return (
-    <components.Option isSelected={isSelected} {...props}>
-      {children}
-      {isSelected && (
-        <FontAwesomeIcon className="ml-2 text-primary" icon={faCheckCircle} size="sm" />
-      )}
-    </components.Option>
-  );
-};
+import { ClearIndicator, DropdownIndicator, MultiValueRemove, Option } from "../Select/components";
 
 export const FilterableSelect = <T,>({ isMulti, closeMenuOnSelect, ...props }: Props<T>) => (
   <Select
@@ -79,7 +36,8 @@ export const FilterableSelect = <T,>({ isMulti, closeMenuOnSelect, ...props }: P
         ),
       placeholder: () => "text-mineshaft-400 text-sm pl-1 py-0.5",
       input: () => "pl-1 py-0.5",
-      valueContainer: () => `p-1 max-h-[14rem] ${isMulti ? "!overflow-y-scroll" : ""} gap-1`,
+      valueContainer: () =>
+        `p-1 max-h-[14rem] ${isMulti ? "!overflow-y-auto thin-scrollbar" : ""} gap-1`,
       singleValue: () => "leading-7 ml-1",
       multiValue: () => "bg-mineshaft-600 rounded items-center py-0.5 px-2 gap-1.5",
       multiValueLabel: () => "leading-6 text-sm",
