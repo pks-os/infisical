@@ -3,7 +3,12 @@ import { twMerge } from "tailwind-merge";
 
 import { ClearIndicator, DropdownIndicator, MultiValueRemove, Option } from "../Select/components";
 
-export const FilterableSelect = <T,>({ isMulti, closeMenuOnSelect, ...props }: Props<T>) => (
+export const FilterableSelect = <T,>({
+  isMulti,
+  closeMenuOnSelect,
+  tabSelectsValue = false,
+  ...props
+}: Props<T>) => (
   <Select
     isMulti={isMulti}
     closeMenuOnSelect={closeMenuOnSelect ?? !isMulti}
@@ -26,6 +31,7 @@ export const FilterableSelect = <T,>({ isMulti, closeMenuOnSelect, ...props }: P
         transition: "none"
       })
     }}
+    tabSelectsValue={tabSelectsValue}
     components={{ DropdownIndicator, ClearIndicator, MultiValueRemove, Option }}
     classNames={{
       container: () => "w-full font-inter",
@@ -47,7 +53,7 @@ export const FilterableSelect = <T,>({ isMulti, closeMenuOnSelect, ...props }: P
       indicatorSeparator: () => "bg-bunker-400",
       dropdownIndicator: () => "text-bunker-200 p-1",
       menu: () =>
-        "mt-2 border text-sm text-mineshaft-200 bg-mineshaft-900 border-mineshaft-600 rounded-md",
+        "mt-2 border text-sm text-mineshaft-200 thin-scrollbar bg-mineshaft-900 border-mineshaft-600 rounded-md",
       groupHeading: () => "ml-3 mt-2 mb-1 text-mineshaft-400 text-sm",
       option: ({ isFocused, isSelected }) =>
         twMerge(
