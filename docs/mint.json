@@ -114,6 +114,7 @@
             "documentation/platform/pki/alerting"
           ]
         },
+        "documentation/platform/ssh",
         {
           "group": "Key Management (KMS)",
           "pages": [
@@ -842,6 +843,40 @@
             "api-reference/endpoints/pki-alerts/read",
             "api-reference/endpoints/pki-alerts/update",
             "api-reference/endpoints/pki-alerts/delete"
+          ]
+        }
+      ]
+    },
+    {
+      "group": "Infisical SSH",
+      "pages": [
+        {
+          "group": "Certificates",
+          "pages": [
+            "api-reference/endpoints/ssh/certificates/issue-credentials",
+            "api-reference/endpoints/ssh/certificates/sign-key"
+          ]
+        },
+        {
+          "group": "Certificate Authorities",
+          "pages": [
+            "api-reference/endpoints/ssh/ca/list",
+            "api-reference/endpoints/ssh/ca/create",
+            "api-reference/endpoints/ssh/ca/read",
+            "api-reference/endpoints/ssh/ca/update",
+            "api-reference/endpoints/ssh/ca/delete",
+            "api-reference/endpoints/ssh/ca/public-key",
+            "api-reference/endpoints/ssh/ca/list-certificate-templates"
+          ]
+        },
+        {
+          "group": "Certificate Templates",
+          "pages": [
+            "api-reference/endpoints/ssh/certificate-templates/list",
+            "api-reference/endpoints/ssh/certificate-templates/create",
+            "api-reference/endpoints/ssh/certificate-templates/read",
+            "api-reference/endpoints/ssh/certificate-templates/update",
+            "api-reference/endpoints/ssh/certificate-templates/delete"
           ]
         }
       ]
