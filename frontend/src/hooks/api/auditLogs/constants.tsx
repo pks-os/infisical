@@ -3,6 +3,7 @@ import { EventType, UserAgentType } from "./enums";
 export const eventToNameMap: { [K in EventType]: string } = {
   [EventType.GET_SECRETS]: "List secrets",
   [EventType.GET_SECRET]: "Read secret",
+  [EventType.DELETE_SECRETS]: "Delete secrets",
   [EventType.CREATE_SECRET]: "Create secret",
   [EventType.UPDATE_SECRET]: "Update secret",
   [EventType.DELETE_SECRET]: "Delete secret",
@@ -81,7 +82,10 @@ export const eventToNameMap: { [K in EventType]: string } = {
     "Update certificate template EST configuration",
   [EventType.UPDATE_PROJECT_SLACK_CONFIG]: "Update project slack configuration",
   [EventType.GET_PROJECT_SLACK_CONFIG]: "Get project slack configuration",
-  [EventType.INTEGRATION_SYNCED]: "Integration sync"
+  [EventType.INTEGRATION_SYNCED]: "Integration sync",
+  [EventType.CREATE_SHARED_SECRET]: "Create shared secret",
+  [EventType.DELETE_SHARED_SECRET]: "Delete shared secret",
+  [EventType.READ_SHARED_SECRET]: "Read shared secret"
 };
 
 export const userAgentTTypeoNameMap: { [K in UserAgentType]: string } = {
